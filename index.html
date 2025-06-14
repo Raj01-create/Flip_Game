@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find and Pair Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #74ebd5, #9face6);
+            margin: 0;
+            text-align: center;
+        }
+
+        .timer, .high-score {
+            position: absolute;
+            top: 35px;
+            background: #333;
+            color: #fff;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-size: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .timer {
+            left: 35px;
+        }
+
+        .high-score {
+            right: 35px;
+        }
+
+        h1 {
+            color: #fff;
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(4, 80px);
+            gap: 15px;
+        }
+
+        .card {
+            width: 80px;
+            height: 80px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            cursor: pointer;
+            transition: transform 0.3s;
+            color: transparent;
+        }
+
+        .card.flip {
+            color: #333;
+            transform: rotateY(180deg);
+        }
+
+        .card.matched {
+            color: #333;
+            cursor: default;
+            animation: scaleUp 0.3s ease-in-out;
+        }
+
+        @keyframes scaleUp {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        
+        }
+
+        .result-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+            text-align: center;
+        }
+
+        .result-box h2 {
+            font-size: 24px;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .result-box p {
+            margin: 5px 0;
+            color: #555;
+        }
+
+        .result-box button {
+            margin-top: 15px;
+            padding: 8px 20px;
+            font-size: 14px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .result-box button:hover {
+            background: #ff4c4c;
+        }
+    </style>
+</head>
+<body>
+    <div class="timer">
+        ⏰ <span id="time">0</span>s
+    </div>
+    <div class="high-score">
+        🏆 High Score: <span id="high-score">0</span>s
+    </div>
+    <div>
+        <h1>Find and Pair Game</h1>
+        <div class="game-container" id="game-board">
+            <!-- Cards will be dynamically generated -->
+        </div>
+    </div>
+
+    <div class="result-box" id="result-box">
+        <h2>Congratulations 🎉</h2>
+        <p>Time: <span id="final-time"></span> seconds</p>
+        <p>Moves: <span id="final-moves"></span></p>
+        <button id="replay">Replay</button>
+    </div>
+    <audio id="flip-sound" src="flipcard-91468.mp3" preload="auto"></audio>
+    <audio id="match-sound" src="game-bonus-2-294436.mp3" preload="auto"></audio>
+    <audio id="win-sound" src="success-fanfare-trumpets-6185.mp3" preload="auto"></audio>
+
+
+    <script>
+         
+        const cardValues = ['🥝', '🍇', '🍎', '🍍', '🥭', '🍓', '🫐', '🍒'];
+        let cards = [...cardValues, ...cardValues];
+        let firstCard = null;
+        let secondCard = null;
+        let matchedPairs = 0;
+        let moves = 0;
+        let time = 0;
+        let timer;
+
+        // Load high score from localStorage if available
+        let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
+        document.getElementById("high-score").textContent = highScore;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function startTimer() {
+            timer = setInterval(() => {
+                time++;
+                document.getElementById("time").textContent = time;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timer);
+        }
+
+        function initGame() {
+            shuffle(cards);
+            const gameBoard = document.getElementById("game-board");
+            gameBoard.innerHTML = '';
+            cards.forEach((value, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.value = value;
+                card.dataset.index = index;
+                card.addEventListener('click', flipCard);
+                gameBoard.appendChild(card);
+            });
+            matchedPairs = 0;
+            moves = 0;
+            time = 0;
+            document.getElementById("time").textContent = time;
+            document.getElementById("result-box").style.display = 'none';
+            startTimer();
+        }
+
+        function flipCard() {
+            if (this.classList.contains('flip') || this.classList.contains('matched') || secondCard) return;
+            this.classList.add('flip');
+            this.textContent = this.dataset.value;
+            document.getElementById("flip-sound").play(); // Play flip sound
+
+
+            if (!firstCard) {
+                firstCard = this;
+            } else {
+                secondCard = this;
+                moves++;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            if (firstCard.dataset.value === secondCard.dataset.value) {
+                document.getElementById("match-sound").play(); // Play match sound
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                matchedPairs++;
+                resetCards();
+                if (matchedPairs === cardValues.length) {
+                    gameWon();
+                }
+            } else {
+                setTimeout(() => {
+                    firstCard.classList.remove('flip');
+                    secondCard.classList.remove('flip');
+                    firstCard.textContent = '';
+                    secondCard.textContent = '';
+                    resetCards();
+                }, 1000);
+            }
+        }
+
+        function resetCards() {
+            firstCard = null;
+            secondCard = null;
+        }
+
+        function gameWon() {
+            stopTimer();
+            document.getElementById("final-time").textContent = time;
+            document.getElementById("final-moves").textContent = moves;
+            document.getElementById("result-box").style.display = 'block';
+
+            // Update high score if new score is better
+            if (time < highScore || highScore === 0) {
+                highScore = time;
+                localStorage.setItem('highScore', highScore);
+                document.getElementById("high-score").textContent = highScore;
+            }
+            document.getElementById("win-sound").play(); // Play win sound
+        }
+
+        document.getElementById("replay").addEventListener('click', initGame);
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
